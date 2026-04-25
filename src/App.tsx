@@ -34,6 +34,15 @@ type ViewPreferences = {
     wordWrap: boolean;
 };
 
+type SessionSource = "real" | "demo" | "empty" | "error";
+
+type EmptyPanelState = {
+    source: SessionSource;
+    title: string;
+    detail: string;
+    hint?: string;
+};
+
 const statusLabels: Record<DiffFile["status"], string> = {
     added: "A",
     modified: "M",
@@ -137,16 +146,25 @@ function getFileCountLabel(count: number) {
     return `${count} ${count === 1 ? "file" : "files"} changed`;
 }
 
+function getComparisonLabel(left: string, right: string) {
+    return `${left} → ${right}`;
+}
+
 function App() {
     const [session, setSession] = useState<DiffSession | null>(null);
     const [selectedPath, setSelectedPath] = useState("");
+    const [sessionSource, setSessionSource] = useState<SessionSource>("empty");
+    const [emptyPanel, setEmptyPanel] = useState<EmptyPanelState>({
+        source: "empty",
+        title: "No diff loaded yet.",
+        detail: "Load two refs and GitGaze will show real Git data here.",
+    });
     const [viewPreferences, setViewPreferences] = useState(loadStoredViewPreferences);
     const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
     const [leftRef, setLeftRef] = useState(defaultLeftRef);
     const [rightRef, setRightRef] = useState(defaultRightRef);
     const [repoRoot, setRepoRoot] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [hasLoadedRealSession, setHasLoadedRealSession] = useState(false);
     const [loadMessage, setLoadMessage] = useState<string | null>(null);
     const viewSettingsRef = useRef<HTMLDivElement>(null);
 
@@ -154,14 +172,13 @@ function App() {
         session?.files.find((file) => file.path === selectedPath) ?? session?.files[0];
     const repoDisplay = getRepoDisplay(repoRoot ?? session?.repoRoot ?? null);
     const hasVisibleSession = session !== null && session.files.length > 0;
-    const emptyPanelTitle =
-        loadMessage ??
-        (isLoading
-            ? "Loading diff..."
-            : "No diff loaded yet. Pick two refs and load the spell.");
-    const emptyPanelDetail = hasLoadedRealSession
-        ? "The last successful diff stays visible when a later load fails."
-        : "GitGaze will show real Git data here once a comparison loads.";
+    const shouldRenderEditor =
+        hasVisibleSession &&
+        selectedFile !== undefined &&
+        (sessionSource === "real" || sessionSource === "demo");
+    const comparisonLabel = session
+        ? getComparisonLabel(session.leftLabel, session.rightLabel)
+        : getComparisonLabel(leftRef, rightRef);
 
     const editorOptions: DiffEditorProps["options"] = {
         readOnly: true,
@@ -199,13 +216,35 @@ function App() {
     ) => {
         const trimmedLeft = left.trim();
         const trimmedRight = right.trim();
+        const requestedComparison = getComparisonLabel(trimmedLeft, trimmedRight);
+        const hasRealSession = sessionSource === "real";
 
         if (!trimmedLeft || !trimmedRight) {
-            setLoadMessage("Both refs are required. Git needs two ends of the rope.");
+            const message = "Both refs are required. Git needs two ends of the rope.";
+
+            if (hasRealSession) {
+                setLoadMessage(`${message} Current diff was not replaced.`);
+            } else {
+                setSession(null);
+                setSelectedPath("");
+                setSessionSource("error");
+                setEmptyPanel({
+                    source: "error",
+                    title: "Could not load diff.",
+                    detail: message,
+                    hint: "Try a ref that exists in this repo, like HEAD~1, HEAD, main, or origin/main.",
+                });
+            }
             return;
         }
 
         setIsLoading(true);
+        setLoadMessage(null);
+        setEmptyPanel({
+            source: "empty",
+            title: `Loading ${requestedComparison}...`,
+            detail: "Asking Git for the diff. Politely, but firmly.",
+        });
 
         try {
             const loadedSession = await invoke<DiffSession>("load_diff_session", {
@@ -217,12 +256,25 @@ function App() {
             setRepoRoot(loadedSession.repoRoot);
 
             if (loadedSession.files.length === 0) {
-                setLoadMessage(`No changes found for ${trimmedLeft} → ${trimmedRight}.`);
+                const message = `No changes found for ${requestedComparison}.`;
+
+                if (hasRealSession) {
+                    setLoadMessage(`${message} Current diff was not replaced.`);
+                } else {
+                    setSession(null);
+                    setSelectedPath("");
+                    setSessionSource("empty");
+                    setEmptyPanel({
+                        source: "empty",
+                        title: message,
+                        detail: "Git returned a valid comparison, but there are no changed files to show.",
+                    });
+                }
                 return;
             }
 
             setLoadMessage(null);
-            setHasLoadedRealSession(true);
+            setSessionSource("real");
             setSession(loadedSession);
             setRepoRoot(loadedSession.repoRoot);
             setSelectedPath((currentPath) =>
@@ -232,8 +284,23 @@ function App() {
             );
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
+            const title = `Could not load ${requestedComparison}.`;
 
-            setLoadMessage(`Real Git data could not be loaded yet: ${message}`);
+            if (hasRealSession) {
+                setLoadMessage(
+                    `${title} Current diff was not replaced. Git says: ${message}`,
+                );
+            } else {
+                setSession(null);
+                setSelectedPath("");
+                setSessionSource("error");
+                setEmptyPanel({
+                    source: "error",
+                    title,
+                    detail: `Git says: ${message}`,
+                    hint: "Try a ref that exists in this repo, like HEAD~1, HEAD, main, or origin/main.",
+                });
+            }
         } finally {
             setIsLoading(false);
         }
@@ -325,41 +392,54 @@ function App() {
                 {loadMessage ? <p className="load-message">{loadMessage}</p> : null}
 
                 <div className="file-summary">
-                    {session ? getFileCountLabel(session.files.length) : "No files loaded"}
+                    {session ? getFileCountLabel(session.files.length) : "No files to show"}
                 </div>
 
-                <div className="file-list">
-                    {session?.files.map((file) => {
-                        const { basename, parentPath } = getPathParts(file.path);
+                {session?.files.length ? (
+                    <div className="file-list">
+                        {session.files.map((file) => {
+                            const { basename, parentPath } = getPathParts(file.path);
 
-                        return (
-                            <button
-                                key={file.path}
-                                className={`file-row ${file.path === selectedFile?.path ? "active" : ""}`}
-                                onClick={() => setSelectedPath(file.path)}
-                                title={file.path}
-                            >
-                                <span className={`status ${file.status}`}>
-                                    {statusLabels[file.status]}
-                                </span>
-                                <span className="file-path">
-                                    {parentPath ? (
-                                        <span className="file-parent">{parentPath}/</span>
-                                    ) : null}
-                                    <span className="file-name">{basename}</span>
-                                    {file.oldPath ? (
-                                        <span
-                                            className="file-old-path"
-                                            title={file.oldPath}
-                                        >
-                                            from {file.oldPath}
-                                        </span>
-                                    ) : null}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
+                            return (
+                                <button
+                                    key={file.path}
+                                    className={`file-row ${file.path === selectedFile?.path ? "active" : ""}`}
+                                    onClick={() => setSelectedPath(file.path)}
+                                    title={file.path}
+                                >
+                                    <span className={`status ${file.status}`}>
+                                        {statusLabels[file.status]}
+                                    </span>
+                                    <span className="file-path">
+                                        {parentPath ? (
+                                            <span className="file-parent">
+                                                {parentPath}/
+                                            </span>
+                                        ) : null}
+                                        <span className="file-name">{basename}</span>
+                                        {file.oldPath ? (
+                                            <span
+                                                className="file-old-path"
+                                                title={file.oldPath}
+                                            >
+                                                from {file.oldPath}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className={`sidebar-empty ${emptyPanel.source}`}>
+                        <strong>No files to show</strong>
+                        <span>
+                            {emptyPanel.source === "error"
+                                ? "The requested comparison failed."
+                                : "Load a comparison with changed files."}
+                        </span>
+                    </div>
+                )}
             </aside>
 
             <section className="diff-panel">
@@ -478,19 +558,20 @@ function App() {
                             <span className={`status-pill ${selectedFile.status}`}>
                                 {statusNames[selectedFile.status]}
                             </span>
-                            <span>
-                                {session.leftLabel} → {session.rightLabel}
-                            </span>
+                            <span>{comparisonLabel}</span>
+                            {sessionSource === "demo" ? (
+                                <span className="demo-label">Demo diff</span>
+                            ) : null}
                         </div>
                     ) : (
                         <div className="selected-file-meta">
                             <strong>No file selected</strong>
-                            <span>{leftRef} → {rightRef}</span>
+                            <span>{comparisonLabel}</span>
                         </div>
                     )}
                 </div>
 
-                {hasVisibleSession && selectedFile ? (
+                {shouldRenderEditor ? (
                     <DiffEditor
                         key={viewPreferences.layout}
                         original={selectedFile.leftText ?? ""}
@@ -500,10 +581,18 @@ function App() {
                         options={editorOptions}
                     />
                 ) : (
-                    <div className="empty-diff-panel">
+                    <div className={`empty-diff-panel ${emptyPanel.source}`}>
                         <div>
-                            <strong>{emptyPanelTitle}</strong>
-                            <p>{emptyPanelDetail}</p>
+                            <span className="empty-panel-kicker">
+                                {emptyPanel.source === "error"
+                                    ? "Load failed"
+                                    : emptyPanel.source === "demo"
+                                      ? "Demo diff"
+                                      : "No diff content"}
+                            </span>
+                            <strong>{emptyPanel.title}</strong>
+                            <p>{emptyPanel.detail}</p>
+                            {emptyPanel.hint ? <p>{emptyPanel.hint}</p> : null}
                         </div>
                     </div>
                 )}
