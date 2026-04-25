@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -lt 2 ]; then
+if [ "$#" -ne 2 ]; then
   echo "Usage: git gaze <left> <right>" >&2
   exit 1
 fi
@@ -13,13 +13,19 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd -- "$script_dir/.." && pwd)"
+rust_cli="$project_root/src-tauri/target/debug/git-gaze"
 debug_binary="$project_root/src-tauri/target/debug/gitgaze"
+
+if [ -x "$rust_cli" ]; then
+  exec "$rust_cli" "$1" "$2"
+fi
 
 if [ ! -x "$debug_binary" ]; then
   cat >&2 <<EOF
-GitGaze debug binary was not found.
+GitGaze debug binaries were not found.
 
-Build it first with:
+Build them first with:
+  cargo build --bin git-gaze
   pnpm tauri build --debug
 
 For live development with launch args, use:

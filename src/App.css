@@ -30,7 +30,7 @@ input {
 
 .app-shell {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: 340px 1fr;
     height: 100vh;
     overflow: hidden;
 }
@@ -44,7 +44,7 @@ input {
 .brand {
     display: flex;
     gap: 12px;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 24px;
 }
 
@@ -71,10 +71,37 @@ input {
     font-size: 12px;
 }
 
-.brand .repo-root {
-    max-width: 225px;
+.repo-card {
+    display: grid;
+    gap: 2px;
+    max-width: 250px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.repo-card .repo-label {
+    color: #8f80a5;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.repo-card strong {
+    overflow: hidden;
+    color: #f6efff;
+    font-size: 14px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.repo-card span:last-child {
     overflow: hidden;
     color: #73eaff;
+    font-size: 11px;
+    line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -96,9 +123,16 @@ input {
     line-height: 1.4;
 }
 
+.file-summary {
+    margin-bottom: 10px;
+    color: #b8a8cc;
+    font-size: 12px;
+    font-weight: 700;
+}
+
 .file-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     width: 100%;
     padding: 10px 12px;
@@ -116,7 +150,12 @@ input {
     background: rgba(255, 79, 216, 0.1);
 }
 
+.file-row.active {
+    box-shadow: inset 3px 0 0 #73eaff;
+}
+
 .status {
+    flex: 0 0 auto;
     display: grid;
     place-items: center;
     width: 22px;
@@ -146,6 +185,43 @@ input {
     color: #73eaff;
 }
 
+.file-path {
+    flex: 1 1 auto;
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-parent,
+.file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-parent {
+    display: inline;
+    color: #9f8db7;
+}
+
+.file-name {
+    color: #fff8ff;
+    font-weight: 700;
+}
+
+.file-old-path {
+    display: block;
+    overflow: hidden;
+    margin-top: 4px;
+    color: #8f80a5;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .diff-panel {
     display: grid;
     grid-template-rows: 56px 44px 1fr;
@@ -167,6 +243,7 @@ input {
     align-items: center;
     gap: 8px;
     min-width: 0;
+    flex: 1 1 auto;
 }
 
 .comparison-form span {
@@ -175,7 +252,8 @@ input {
 }
 
 .comparison-form input {
-    width: 132px;
+    width: clamp(96px, 14vw, 150px);
+    min-width: 0;
     border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 10px;
     padding: 7px 10px;
@@ -208,6 +286,68 @@ input {
     cursor: wait;
 }
 
+.view-settings {
+    flex: 0 0 auto;
+    position: relative;
+}
+
+.comparison-bar .view-settings-button {
+    min-width: 118px;
+}
+
+.view-settings-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 10;
+    width: 230px;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(14, 11, 22, 0.98);
+    box-shadow:
+        0 18px 46px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(0, 216, 255, 0.05),
+        0 0 24px rgba(124, 92, 255, 0.16);
+}
+
+.view-settings-section {
+    padding: 6px 10px 5px;
+    color: #8f80a5;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.comparison-bar .view-settings-row {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    align-items: center;
+    width: 100%;
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #f6efff;
+    background: transparent;
+    text-align: left;
+}
+
+.comparison-bar .view-settings-row:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.view-settings-check {
+    color: #73eaff;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.view-settings-divider {
+    height: 1px;
+    margin: 7px 0;
+    background: rgba(255, 255, 255, 0.12);
+}
+
 .diff-header {
     display: flex;
     align-items: center;
@@ -217,13 +357,85 @@ input {
     background: rgba(12, 9, 20, 0.74);
 }
 
-.diff-header div {
+.selected-file-meta {
     display: flex;
     gap: 10px;
     align-items: center;
+    min-width: 0;
+}
+
+.selected-file-meta strong {
+    overflow: hidden;
+    max-width: min(62vw, 820px);
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .diff-header span {
     color: #b8a8cc;
     font-size: 12px;
+}
+
+.status-pill {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.status-pill.modified {
+    border-color: rgba(255, 213, 106, 0.22);
+    color: #ffd56a;
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.status-pill.added {
+    border-color: rgba(121, 242, 164, 0.22);
+    color: #79f2a4;
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.status-pill.deleted {
+    border-color: rgba(255, 122, 168, 0.22);
+    color: #ff7aa8;
+    background: rgba(255, 79, 130, 0.1);
+}
+
+.status-pill.renamed {
+    border-color: rgba(115, 234, 255, 0.22);
+    color: #73eaff;
+    background: rgba(0, 216, 255, 0.1);
+}
+
+.empty-diff-panel {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 28px;
+    background: rgba(8, 6, 13, 0.56);
+}
+
+.empty-diff-panel div {
+    max-width: 520px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 22px 24px;
+    color: #f6efff;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+}
+
+.empty-diff-panel strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.empty-diff-panel p {
+    margin: 0;
+    color: #b8a8cc;
+    font-size: 13px;
+    line-height: 1.5;
 }

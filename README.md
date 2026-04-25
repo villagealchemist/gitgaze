@@ -18,7 +18,28 @@ pnpm tauri:dev:args --gaze-left HEAD~1 --gaze-right HEAD --gaze-repo "$PWD"
 
 Launch refs use explicit `--gaze-left` and `--gaze-right` flags internally so Tauri or cargo dev args are ignored instead of being mistaken for Git refs. `--gaze-repo` tells the app which repository to diff.
 
-There is also a local placeholder Git extension wrapper at `scripts/git-gaze`. It is not installed automatically. If a debug binary exists, the wrapper resolves the current repo with `git rev-parse --show-toplevel` and translates `git gaze <left> <right>` into explicit launch flags:
+## Local CLI Shim
+
+`git-gaze` is being developed as the future Git extension entrypoint. Git discovers executables named `git-<subcommand>` on `PATH`, so the target usage is:
+
+```bash
+git gaze <left> <right>
+```
+
+For local development, build the native shim:
+
+```bash
+cd src-tauri
+cargo build --bin git-gaze
+```
+
+Then point it at a GitGaze app binary:
+
+```bash
+GITGAZE_BIN=/path/to/gitgaze git-gaze HEAD~1 HEAD
+```
+
+There is also a local fallback wrapper at `scripts/git-gaze`. It is not installed automatically. If the Rust `git-gaze` binary exists, the script delegates to it; otherwise it falls back to launching the debug GitGaze app binary directly.
 
 ```bash
 PATH="$PWD/scripts:$PATH" git gaze HEAD~1 HEAD
