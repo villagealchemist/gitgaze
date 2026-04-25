@@ -13,12 +13,12 @@ The app currently opens with `HEAD~1` -> `HEAD` and includes temporary ref contr
 To test launch args during development:
 
 ```bash
-pnpm tauri:dev:args --gaze-left HEAD~1 --gaze-right HEAD
+pnpm tauri:dev:args --gaze-left HEAD~1 --gaze-right HEAD --gaze-repo "$PWD"
 ```
 
-Launch refs use explicit `--gaze-left` and `--gaze-right` flags internally so Tauri or cargo dev args are ignored instead of being mistaken for Git refs.
+Launch refs use explicit `--gaze-left` and `--gaze-right` flags internally so Tauri or cargo dev args are ignored instead of being mistaken for Git refs. `--gaze-repo` tells the app which repository to diff.
 
-There is also a local placeholder Git extension wrapper at `scripts/git-gaze`. It is not installed automatically. If a debug binary exists, the wrapper translates `git gaze <left> <right>` into those explicit launch flags:
+There is also a local placeholder Git extension wrapper at `scripts/git-gaze`. It is not installed automatically. If a debug binary exists, the wrapper resolves the current repo with `git rev-parse --show-toplevel` and translates `git gaze <left> <right>` into explicit launch flags:
 
 ```bash
 PATH="$PWD/scripts:$PATH" git gaze HEAD~1 HEAD

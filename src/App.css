@@ -71,6 +71,14 @@ input {
     font-size: 12px;
 }
 
+.brand .repo-root {
+    max-width: 225px;
+    overflow: hidden;
+    color: #73eaff;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .file-list {
     display: flex;
     flex-direction: column;

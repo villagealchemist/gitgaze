@@ -22,6 +22,7 @@ type DiffFile = {
 type LaunchDiffRequest = {
     left: string;
     right: string;
+    repoRoot?: string | null;
 };
 
 const mockSession: DiffSession = {
@@ -61,6 +62,7 @@ function App() {
     const [sideBySide, setSideBySide] = useState(true);
     const [leftRef, setLeftRef] = useState(defaultLeftRef);
     const [rightRef, setRightRef] = useState(defaultRightRef);
+    const [repoRoot, setRepoRoot] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [hasLoadedRealSession, setHasLoadedRealSession] = useState(false);
     const [loadMessage, setLoadMessage] = useState<string | null>(null);
@@ -79,7 +81,11 @@ function App() {
         useInlineViewWhenSpaceIsLimited: false,
     };
 
-    const loadDiffSession = async (left: string, right: string) => {
+    const loadDiffSession = async (
+        left: string,
+        right: string,
+        targetRepoRoot: string | null,
+    ) => {
         const trimmedLeft = left.trim();
         const trimmedRight = right.trim();
 
@@ -94,7 +100,10 @@ function App() {
             const loadedSession = await invoke<DiffSession>("load_diff_session", {
                 left: trimmedLeft,
                 right: trimmedRight,
+                repoRoot: targetRepoRoot,
             });
+
+            setRepoRoot(loadedSession.repoRoot);
 
             if (loadedSession.files.length === 0) {
                 setLoadMessage(`No changes found for ${trimmedLeft} → ${trimmedRight}.`);
@@ -127,9 +136,16 @@ function App() {
                 );
 
                 if (launchRequest) {
+                    const launchRepoRoot = launchRequest.repoRoot ?? null;
+
                     setLeftRef(launchRequest.left);
                     setRightRef(launchRequest.right);
-                    await loadDiffSession(launchRequest.left, launchRequest.right);
+                    setRepoRoot(launchRepoRoot);
+                    await loadDiffSession(
+                        launchRequest.left,
+                        launchRequest.right,
+                        launchRepoRoot,
+                    );
                     return;
                 }
             } catch (error: unknown) {
@@ -137,7 +153,7 @@ function App() {
                 setLoadMessage(`Launch refs could not be read: ${message}`);
             }
 
-            await loadDiffSession(defaultLeftRef, defaultRightRef);
+            await loadDiffSession(defaultLeftRef, defaultRightRef, null);
         };
 
         void loadStartupDiff();
@@ -151,6 +167,9 @@ function App() {
                     <div>
                         <h1>GitGaze</h1>
                         <p>local PR-style diff viewer</p>
+                        <p className="repo-root" title={repoRoot ?? undefined}>
+                            {repoRoot ?? "current working repo"}
+                        </p>
                     </div>
                 </div>
 
@@ -178,7 +197,7 @@ function App() {
                         className="comparison-form"
                         onSubmit={(event) => {
                             event.preventDefault();
-                            void loadDiffSession(leftRef, rightRef);
+                            void loadDiffSession(leftRef, rightRef, repoRoot);
                         }}
                     >
                         <input

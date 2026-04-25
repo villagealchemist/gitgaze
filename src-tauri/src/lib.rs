@@ -34,11 +34,19 @@ enum DiffStatus {
 struct LaunchDiffRequest {
     left: String,
     right: String,
+    repo_root: Option<String>,
 }
 
 #[tauri::command]
-fn load_diff_session(left: String, right: String) -> Result<DiffSession, String> {
-    let repo_root = run_git(["rev-parse", "--show-toplevel"], None)?
+fn load_diff_session(
+    left: String,
+    right: String,
+    repo_root: Option<String>,
+) -> Result<DiffSession, String> {
+    let requested_repo_root = repo_root
+        .as_deref()
+        .filter(|value| !value.trim().is_empty());
+    let repo_root = run_git(["rev-parse", "--show-toplevel"], requested_repo_root)?
         .trim()
         .to_string();
 
@@ -68,19 +76,35 @@ fn get_launch_diff_request() -> Option<LaunchDiffRequest> {
 fn parse_launch_diff_request_args(args: &[String]) -> Option<LaunchDiffRequest> {
     let mut left = None;
     let mut right = None;
+    let mut repo_root = None;
     let mut index = 0;
 
     while index < args.len() {
         let arg = &args[index];
 
         if arg == "--gaze-left" {
-            left = args.get(index + 1).filter(|value| !value.is_empty()).cloned();
+            left = args
+                .get(index + 1)
+                .filter(|value| !value.is_empty())
+                .cloned();
             index += 2;
             continue;
         }
 
         if arg == "--gaze-right" {
-            right = args.get(index + 1).filter(|value| !value.is_empty()).cloned();
+            right = args
+                .get(index + 1)
+                .filter(|value| !value.is_empty())
+                .cloned();
+            index += 2;
+            continue;
+        }
+
+        if arg == "--gaze-repo" {
+            repo_root = args
+                .get(index + 1)
+                .filter(|value| !value.is_empty())
+                .cloned();
             index += 2;
             continue;
         }
@@ -93,13 +117,21 @@ fn parse_launch_diff_request_args(args: &[String]) -> Option<LaunchDiffRequest> 
             if !value.is_empty() {
                 right = Some(value.to_string());
             }
+        } else if let Some(value) = arg.strip_prefix("--gaze-repo=") {
+            if !value.is_empty() {
+                repo_root = Some(value.to_string());
+            }
         }
 
         index += 1;
     }
 
     match (left, right) {
-        (Some(left), Some(right)) => Some(LaunchDiffRequest { left, right }),
+        (Some(left), Some(right)) => Some(LaunchDiffRequest {
+            left,
+            right,
+            repo_root,
+        }),
         _ => None,
     }
 }
@@ -251,18 +283,18 @@ mod tests {
 
         assert_eq!(request.left, "HEAD~1");
         assert_eq!(request.right, "HEAD");
+        assert_eq!(request.repo_root, None);
     }
 
     #[test]
     fn parses_equals_flags() {
-        let request = parse_launch_diff_request_args(&args(&[
-            "--gaze-left=main",
-            "--gaze-right=HEAD",
-        ]))
-        .expect("launch request");
+        let request =
+            parse_launch_diff_request_args(&args(&["--gaze-left=main", "--gaze-right=HEAD"]))
+                .expect("launch request");
 
         assert_eq!(request.left, "main");
         assert_eq!(request.right, "HEAD");
+        assert_eq!(request.repo_root, None);
     }
 
     #[test]
@@ -278,6 +310,38 @@ mod tests {
 
         assert_eq!(request.left, "main");
         assert_eq!(request.right, "HEAD");
+        assert_eq!(request.repo_root, None);
+    }
+
+    #[test]
+    fn parses_split_repo_flag() {
+        let request = parse_launch_diff_request_args(&args(&[
+            "--gaze-left",
+            "HEAD~1",
+            "--gaze-right",
+            "HEAD",
+            "--gaze-repo",
+            "/tmp/repo",
+        ]))
+        .expect("launch request");
+
+        assert_eq!(request.left, "HEAD~1");
+        assert_eq!(request.right, "HEAD");
+        assert_eq!(request.repo_root.as_deref(), Some("/tmp/repo"));
+    }
+
+    #[test]
+    fn parses_equals_repo_flag() {
+        let request = parse_launch_diff_request_args(&args(&[
+            "--gaze-repo=/tmp/repo",
+            "--gaze-left=main",
+            "--gaze-right=HEAD",
+        ]))
+        .expect("launch request");
+
+        assert_eq!(request.left, "main");
+        assert_eq!(request.right, "HEAD");
+        assert_eq!(request.repo_root.as_deref(), Some("/tmp/repo"));
     }
 
     #[test]
@@ -297,6 +361,13 @@ mod tests {
     #[test]
     fn returns_none_when_neither_exists() {
         let request = parse_launch_diff_request_args(&args(&["HEAD~1", "HEAD", "--dev"]));
+
+        assert!(request.is_none());
+    }
+
+    #[test]
+    fn returns_none_when_only_repo_exists() {
+        let request = parse_launch_diff_request_args(&args(&["--gaze-repo", "/tmp/repo"]));
 
         assert!(request.is_none());
     }
