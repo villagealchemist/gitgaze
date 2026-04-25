@@ -62,11 +62,44 @@ fn load_diff_session(left: String, right: String) -> Result<DiffSession, String>
 fn get_launch_diff_request() -> Option<LaunchDiffRequest> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
 
-    match (args.first(), args.get(1)) {
-        (Some(left), Some(right)) => Some(LaunchDiffRequest {
-            left: left.to_string(),
-            right: right.to_string(),
-        }),
+    parse_launch_diff_request_args(&args)
+}
+
+fn parse_launch_diff_request_args(args: &[String]) -> Option<LaunchDiffRequest> {
+    let mut left = None;
+    let mut right = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = &args[index];
+
+        if arg == "--gaze-left" {
+            left = args.get(index + 1).filter(|value| !value.is_empty()).cloned();
+            index += 2;
+            continue;
+        }
+
+        if arg == "--gaze-right" {
+            right = args.get(index + 1).filter(|value| !value.is_empty()).cloned();
+            index += 2;
+            continue;
+        }
+
+        if let Some(value) = arg.strip_prefix("--gaze-left=") {
+            if !value.is_empty() {
+                left = Some(value.to_string());
+            }
+        } else if let Some(value) = arg.strip_prefix("--gaze-right=") {
+            if !value.is_empty() {
+                right = Some(value.to_string());
+            }
+        }
+
+        index += 1;
+    }
+
+    match (left, right) {
+        (Some(left), Some(right)) => Some(LaunchDiffRequest { left, right }),
         _ => None,
     }
 }
@@ -196,4 +229,75 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_launch_diff_request_args;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn parses_split_flags() {
+        let request = parse_launch_diff_request_args(&args(&[
+            "--gaze-left",
+            "HEAD~1",
+            "--gaze-right",
+            "HEAD",
+        ]))
+        .expect("launch request");
+
+        assert_eq!(request.left, "HEAD~1");
+        assert_eq!(request.right, "HEAD");
+    }
+
+    #[test]
+    fn parses_equals_flags() {
+        let request = parse_launch_diff_request_args(&args(&[
+            "--gaze-left=main",
+            "--gaze-right=HEAD",
+        ]))
+        .expect("launch request");
+
+        assert_eq!(request.left, "main");
+        assert_eq!(request.right, "HEAD");
+    }
+
+    #[test]
+    fn ignores_unrelated_args() {
+        let request = parse_launch_diff_request_args(&args(&[
+            "--dev",
+            "--gaze-left",
+            "main",
+            "--framework-noise",
+            "--gaze-right=HEAD",
+        ]))
+        .expect("launch request");
+
+        assert_eq!(request.left, "main");
+        assert_eq!(request.right, "HEAD");
+    }
+
+    #[test]
+    fn returns_none_when_only_left_exists() {
+        let request = parse_launch_diff_request_args(&args(&["--gaze-left", "HEAD~1"]));
+
+        assert!(request.is_none());
+    }
+
+    #[test]
+    fn returns_none_when_only_right_exists() {
+        let request = parse_launch_diff_request_args(&args(&["--gaze-right", "HEAD"]));
+
+        assert!(request.is_none());
+    }
+
+    #[test]
+    fn returns_none_when_neither_exists() {
+        let request = parse_launch_diff_request_args(&args(&["HEAD~1", "HEAD", "--dev"]));
+
+        assert!(request.is_none());
+    }
 }

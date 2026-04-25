@@ -18,9 +18,9 @@ Build it first with:
   pnpm tauri build --debug
 
 For live development with launch args, use:
-  pnpm tauri:dev:args "$1" "$2"
+  pnpm tauri:dev:args --gaze-left "$1" --gaze-right "$2"
 EOF
   exit 1
 fi
 
-exec "$debug_binary" "$1" "$2"
+exec "$debug_binary" --gaze-left "$1" --gaze-right "$2"
