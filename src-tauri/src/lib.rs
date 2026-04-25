@@ -29,6 +29,13 @@ enum DiffStatus {
     Renamed,
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchDiffRequest {
+    left: String,
+    right: String,
+}
+
 #[tauri::command]
 fn load_diff_session(left: String, right: String) -> Result<DiffSession, String> {
     let repo_root = run_git(["rev-parse", "--show-toplevel"], None)?
@@ -49,6 +56,19 @@ fn load_diff_session(left: String, right: String) -> Result<DiffSession, String>
         right_label: right,
         files,
     })
+}
+
+#[tauri::command]
+fn get_launch_diff_request() -> Option<LaunchDiffRequest> {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+
+    match (args.first(), args.get(1)) {
+        (Some(left), Some(right)) => Some(LaunchDiffRequest {
+            left: left.to_string(),
+            right: right.to_string(),
+        }),
+        _ => None,
+    }
 }
 
 fn parse_name_status_line(
@@ -170,7 +190,10 @@ fn infer_language(path: &str) -> Option<String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![load_diff_session])
+        .invoke_handler(tauri::generate_handler![
+            load_diff_session,
+            get_launch_diff_request
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

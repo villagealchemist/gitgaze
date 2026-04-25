@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 2 ]; then
+  echo "Usage: git gaze <left> <right>" >&2
+  exit 1
+fi
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd -- "$script_dir/.." && pwd)"
+debug_binary="$project_root/src-tauri/target/debug/gitgaze"
+
+if [ ! -x "$debug_binary" ]; then
+  cat >&2 <<EOF
+GitGaze debug binary was not found.
+
+Build it first with:
+  pnpm tauri build --debug
+
+For live development with launch args, use:
+  pnpm tauri:dev:args "$1" "$2"
+EOF
+  exit 1
+fi
+
+exec "$debug_binary" "$1" "$2"

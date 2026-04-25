@@ -19,6 +19,11 @@ type DiffFile = {
     rightText: string | null;
 };
 
+type LaunchDiffRequest = {
+    left: string;
+    right: string;
+};
+
 const mockSession: DiffSession = {
     repoRoot: "mock",
     leftLabel: "main",
@@ -115,7 +120,27 @@ function App() {
     };
 
     useEffect(() => {
-        void loadDiffSession(defaultLeftRef, defaultRightRef);
+        const loadStartupDiff = async () => {
+            try {
+                const launchRequest = await invoke<LaunchDiffRequest | null>(
+                    "get_launch_diff_request",
+                );
+
+                if (launchRequest) {
+                    setLeftRef(launchRequest.left);
+                    setRightRef(launchRequest.right);
+                    await loadDiffSession(launchRequest.left, launchRequest.right);
+                    return;
+                }
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                setLoadMessage(`Launch refs could not be read: ${message}`);
+            }
+
+            await loadDiffSession(defaultLeftRef, defaultRightRef);
+        };
+
+        void loadStartupDiff();
     }, []);
 
     return (
@@ -202,4 +227,3 @@ function App() {
 }
 
 export default App;
-// gitgaze smoke test
